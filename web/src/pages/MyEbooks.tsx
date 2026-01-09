@@ -1,4 +1,4 @@
-import { BookOpen, Download, Edit, MoreVertical, Trash2, Calendar, FileText } from 'lucide-react';
+import { BookOpen, Download, Edit, Trash2, Calendar, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
@@ -126,9 +126,9 @@ export function MyEbooks() {
                                 )}
 
                                 <div className="flex items-center gap-1">
-                                    <button className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Éditer">
+                                    <Link to={`/ebooks/${ebook.id}/edit`} className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Éditer">
                                         <Edit size={18} />
-                                    </button>
+                                    </Link>
                                     <button className="p-2 text-slate-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors" title="Télécharger">
                                         <Download size={18} />
                                     </button>

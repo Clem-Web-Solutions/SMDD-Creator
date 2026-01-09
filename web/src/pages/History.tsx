@@ -1,4 +1,4 @@
-import { Calendar, Search, Filter, FileText, Zap, BookOpen, GraduationCap, Clock, ArrowRight } from 'lucide-react';
+import { Search, Filter, Zap, BookOpen, GraduationCap, Clock, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const mockHistory = [
@@ -94,8 +94,8 @@ export function History() {
                         >
                             <div className="flex items-center gap-5">
                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${item.type === 'ebook' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400' :
-                                        item.type === 'formation' ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400' :
-                                            'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                                    item.type === 'formation' ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400' :
+                                        'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400'
                                     }`}>
                                     {item.type === 'ebook' && <BookOpen size={20} />}
                                     {item.type === 'formation' && <GraduationCap size={20} />}
@@ -120,8 +120,8 @@ export function History() {
                                     {item.credits > 0 ? '+' : ''}{item.credits} crédits
                                 </div>
                                 <div className={`px-3 py-1 rounded-full text-xs font-medium border ${item.status === 'success'
-                                        ? 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/20'
-                                        : 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20'
+                                    ? 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/20'
+                                    : 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20'
                                     }`}>
                                     {item.status === 'success' ? 'Succès' : 'Échec'}
                                 </div>

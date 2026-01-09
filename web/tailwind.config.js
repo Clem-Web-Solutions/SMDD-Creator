@@ -21,6 +21,7 @@ export default {
           900: '#0c4a6e',
         },
         sidebar: '#0f172a', // Dark slate
+        electric: '#2b6fff', // Copyfy Electric Blue
       }
     },
   },

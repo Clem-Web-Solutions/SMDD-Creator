@@ -1,16 +1,18 @@
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Outlet } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
+import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { Generator } from './pages/Generator';
 import { Settings } from './pages/Settings';
 import { MyEbooks } from './pages/MyEbooks';
+import { EbookEditor } from './pages/EbookEditor';
 import { MyFormations } from './pages/MyFormations';
 import { History } from './pages/History';
 import { Landing } from './pages/Landing';
 import { PageTransition } from './components/PageTransition';
 import { MainLayout } from './layouts/MainLayout';
 import { LandingLayout } from './layouts/LandingLayout';
-import { Outlet } from 'react-router-dom';
 
 export function AppRoutes() {
     const location = useLocation();
@@ -18,6 +20,10 @@ export function AppRoutes() {
     return (
         <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname}>
+                {/* Auth Routes (Standalone) */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+
                 {/* Public Routes with LandingLayout */}
                 <Route element={<LandingLayout><Outlet /></LandingLayout>}>
                     <Route path="/" element={<Landing />} />
@@ -43,6 +49,11 @@ export function AppRoutes() {
                     <Route path="/ebooks" element={
                         <PageTransition>
                             <MyEbooks />
+                        </PageTransition>
+                    } />
+                    <Route path="/ebooks/:id/edit" element={
+                        <PageTransition>
+                            <EbookEditor />
                         </PageTransition>
                     } />
                     <Route path="/formations" element={
