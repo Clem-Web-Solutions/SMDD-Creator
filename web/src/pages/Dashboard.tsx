@@ -3,12 +3,15 @@ import { DashboardCharts } from '../components/DashboardCharts';
 import { Clock, Download, MoreVertical, Plus, Star } from 'lucide-react';
 
 export function Dashboard() {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    const userName = userInfo.name || 'Utilisateur';
+
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-8">
             {/* Header */}
             <div className="flex justify-between items-end">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Bonjour, Thomas 👋</h1>
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Bonjour, {userName} 👋</h1>
                     <p className="text-slate-500 dark:text-slate-400">Voici ce qui se passe sur votre compte aujourd'hui.</p>
                 </div>
                 <button className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-900/40 hover:shadow-blue-900/60 transition-all flex items-center gap-2">

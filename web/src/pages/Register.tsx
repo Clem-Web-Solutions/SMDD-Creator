@@ -7,14 +7,40 @@ export function Register() {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
 
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
-        // Simulate API call
-        setTimeout(() => {
+
+        try {
+            const response = await fetch('http://localhost:3001/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, email, password }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Success
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('userInfo', JSON.stringify(data));
+                navigate('/dashboard');
+            } else {
+                // Error
+                alert(data.message || "Erreur lors de l'inscription");
+            }
+        } catch (error) {
+            console.error('Register error:', error);
+            alert("Erreur de connexion au serveur");
+        } finally {
             setIsLoading(false);
-            navigate('/dashboard');
-        }, 1500);
+        }
     };
 
     return (
@@ -49,6 +75,8 @@ export function Register() {
                                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-electric transition-colors" />
                                 <input
                                     type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
                                     placeholder="John Doe"
                                     className="w-full bg-[#020617]/50 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-electric/50 focus:ring-1 focus:ring-electric/50 transition-all hover:bg-[#020617]/80"
                                     required
@@ -62,6 +90,8 @@ export function Register() {
                                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-electric transition-colors" />
                                 <input
                                     type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     placeholder="exemple@email.com"
                                     className="w-full bg-[#020617]/50 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-electric/50 focus:ring-1 focus:ring-electric/50 transition-all hover:bg-[#020617]/80"
                                     required
@@ -75,6 +105,8 @@ export function Register() {
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-electric transition-colors" />
                                 <input
                                     type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
                                     className="w-full bg-[#020617]/50 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-electric/50 focus:ring-1 focus:ring-electric/50 transition-all hover:bg-[#020617]/80"
                                     required
