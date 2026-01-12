@@ -39,6 +39,10 @@ const ebookSchema = new mongoose.Schema({
         enum: ['generating', 'completed', 'failed', 'draft'],
         default: 'generating'
     },
+    coverUrl: {
+        type: String,
+        required: false
+    },
     createdAt: {
         type: Date,
         default: Date.now
