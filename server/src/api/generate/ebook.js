@@ -24,11 +24,35 @@ router.post("/ebook", protect, async (req, res) => {
 
         // Determine chapter count based on length selection
         let targetChapterCount = 10; // Default
-        if (length && length.includes("5-10")) targetChapterCount = 7;
-        else if (length && length.includes("15")) targetChapterCount = 15;
-        else if (length && length.includes("30")) targetChapterCount = 25; // Cap at 25 to avoid timeouts
+        let requiredCredits = 150; // Default "Moyen"
+
+        if (length && length.includes("5-10")) {
+            targetChapterCount = 7;
+            requiredCredits = 100;
+        }
+        else if (length && length.includes("15")) {
+            targetChapterCount = 15;
+            requiredCredits = 150;
+        }
+        else if (length && length.includes("30")) {
+            targetChapterCount = 25; // Cap at 25 to avoid timeouts
+            requiredCredits = 250;
+        }
 
         const user = req.user; // Use authenticated user
+
+        // CHECK CREDITS
+        if (user.credits < requiredCredits) {
+            return res.status(403).json({
+                error: "Crédits insuffisants",
+                required: requiredCredits,
+                current: user.credits
+            });
+        }
+
+        // DEDUCT CREDITS (Optimistic deduction)
+        user.credits -= requiredCredits;
+        await user.save();
 
         const prompt = `Tu es un expert en rédaction d'ebooks pédagogiques.
         Génère un PLAN DÉTAILLÉ et le CONTENU COMPLET pour un ebook sur le sujet : "${subject}" (Titre : ${title}).

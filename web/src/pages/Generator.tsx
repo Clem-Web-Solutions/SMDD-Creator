@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { BookOpen, FileText, Sparkles, Wand2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { NoCreditsModal } from '../components/NoCreditsModal';
 
 export function Generator() {
     const navigate = useNavigate();
@@ -19,6 +20,8 @@ export function Generator() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [generatedEbookId, setGeneratedEbookId] = useState<string | null>(null);
+    const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
+    const [insufficientCreditDetails, setInsufficientCreditDetails] = useState({ required: 100, current: 0 });
 
     useEffect(() => {
         const type = searchParams.get('type');
@@ -59,11 +62,33 @@ export function Generator() {
                 })
             });
 
+            if (response.status === 403) {
+                const errorData = await response.json();
+                setInsufficientCreditDetails({
+                    required: errorData.required || 150,
+                    current: errorData.current || 0
+                });
+                setShowNoCreditsModal(true);
+                return;
+            }
+
             const data = await response.json();
 
             if (response.ok) {
                 setGeneratedEbookId(data.ebook._id);
                 setShowSuccessModal(true);
+
+                // Fetch updated user stats (credits)
+                fetch("http://localhost:3001/api/auth/me", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                })
+                    .then(res => res.json())
+                    .then(userData => {
+                        const updatedUser = { ...userData, token };
+                        localStorage.setItem('userInfo', JSON.stringify(updatedUser));
+                        window.dispatchEvent(new Event('userDataUpdated'));
+                    })
+                    .catch(err => console.error("Failed to update credits:", err));
             } else {
                 throw new Error(data.message || 'Erreur lors de la génération');
             }
@@ -303,7 +328,16 @@ export function Generator() {
                                         <p className="text-xs text-slate-500">Basé sur la longueur sélectionnée</p>
                                     </div>
                                 </div>
-                                <span className="text-xl font-bold text-blue-600 dark:text-blue-500">~150 crédits</span>
+                                <span className={`text-xl font-bold transition-all key={length} ${length.includes('Court') ? 'text-green-600 dark:text-green-500' :
+                                    length.includes('Moyen') ? 'text-blue-600 dark:text-blue-500' :
+                                        'text-purple-600 dark:text-purple-500'
+                                    }`}>
+                                    ~{
+                                        length.includes('Court') ? 100 :
+                                            length.includes('Moyen') ? 150 :
+                                                250
+                                    } crédits
+                                </span>
                             </div>
 
                             {/* Generate Button */}
@@ -328,6 +362,12 @@ export function Generator() {
                     )}
                 </AnimatePresence>
             </div>
+            <NoCreditsModal
+                isOpen={showNoCreditsModal}
+                onClose={() => setShowNoCreditsModal(false)}
+                required={insufficientCreditDetails.required}
+                current={insufficientCreditDetails.current}
+            />
         </div>
     );
 

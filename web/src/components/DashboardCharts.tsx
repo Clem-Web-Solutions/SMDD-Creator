@@ -1,16 +1,29 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useState, useEffect } from 'react';
 
-const data = [
-    { name: 'Jan', ebooks: 45, training: 28 },
-    { name: 'Feb', ebooks: 52, training: 35 },
-    { name: 'Mar', ebooks: 48, training: 42 },
-    { name: 'Apr', ebooks: 70, training: 55 },
-    { name: 'May', ebooks: 85, training: 68 },
-    { name: 'Jun', ebooks: 94, training: 78 },
-    { name: 'Jul', ebooks: 110, training: 95 },
-];
+
 
 export function DashboardCharts() {
+    const [data, setData] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('http://localhost:3001/api/ebooks/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const stats = await response.json();
+                    setData(stats);
+                }
+            } catch (error) {
+                console.error("Failed to fetch stats", error);
+            }
+        };
+
+        fetchStats();
+    }, []);
     return (
         <div className="space-y-8">
             {/* Main Growth Chart */}

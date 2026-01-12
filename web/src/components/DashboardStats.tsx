@@ -1,4 +1,5 @@
-import { BookOpen, GraduationCap, Sparkles, Award, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BookOpen, GraduationCap, Sparkles, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 interface StatCardProps {
     icon: React.ElementType;
@@ -30,6 +31,48 @@ function StatCard({ icon: Icon, title, value, trend, trendUp, iconBg, iconColor 
 }
 
 export function DashboardStats() {
+    // Get user info from localStorage
+    const [user, setUser] = useState<any>(() => {
+        const userInfoStr = localStorage.getItem('userInfo');
+        return userInfoStr ? JSON.parse(userInfoStr) : null;
+    });
+
+    useEffect(() => {
+        const fetchUserData = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return;
+
+                const response = await fetch('http://localhost:3001/api/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    // Merge with existing token
+                    const updatedUser = { ...data, token };
+                    localStorage.setItem('userInfo', JSON.stringify(updatedUser)); // Update local storage
+                    setUser(updatedUser); // Update state
+                    window.dispatchEvent(new Event('userDataUpdated')); // Sync Sidebar
+                }
+            } catch (error) {
+                console.error("Failed to sync user data", error);
+            }
+        };
+
+        fetchUserData();
+    }, []);
+
+    // Determine max credits based on plan
+    let maxCredits = 300;
+    if (user?.plan === 'pro') maxCredits = 1500;
+    if (user?.plan === 'enterprise') maxCredits = 5000;
+
+    const currentCredits = user?.credits || 0;
+    const percentage = (currentCredits / maxCredits) * 100;
+
     const stats = [
         {
             title: 'Mes Ebooks',
@@ -50,13 +93,13 @@ export function DashboardStats() {
             icon: GraduationCap,
         },
         {
-            title: 'Certifications obtenues',
-            value: '5',
-            trend: '1 nouvelle',
-            trendUp: true,
-            iconBg: 'bg-yellow-100 dark:bg-yellow-500/20',
-            iconColor: 'text-yellow-600 dark:text-yellow-400',
-            icon: Award,
+            title: 'Crédits IA',
+            value: `${currentCredits}`,
+            trend: `${Math.round(percentage)}% restants`,
+            trendUp: percentage > 20,
+            iconBg: 'bg-purple-100 dark:bg-purple-500/20',
+            iconColor: 'text-purple-600 dark:text-purple-400',
+            icon: Sparkles,
         }
     ];
 

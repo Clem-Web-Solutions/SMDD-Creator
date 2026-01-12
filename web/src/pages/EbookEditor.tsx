@@ -23,6 +23,7 @@ import {
 
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
+import { NoCreditsModal } from '../components/NoCreditsModal';
 
 const TEMPLATES: Record<string, { name: string; bg: string; text: string; border: string; prose: string; style?: React.CSSProperties; decoration?: React.ReactNode }> = {
     modern: {
@@ -95,6 +96,8 @@ export function EbookEditor() {
     const [isExporting, setIsExporting] = useState(false);
     const [isGeneratingCover, setIsGeneratingCover] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof TEMPLATES>('modern');
+    const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
+    const [insufficientCreditDetails, setInsufficientCreditDetails] = useState({ required: 50, current: 0 });
 
     const handleGenerateCover = async () => {
         if (!ebook) return;
@@ -118,12 +121,35 @@ export function EbookEditor() {
                 })
             });
 
+            if (response.status === 403) {
+                const errorData = await response.json();
+                setInsufficientCreditDetails({
+                    required: errorData.required || 50,
+                    current: errorData.current || 0
+                });
+                setShowNoCreditsModal(true);
+                return;
+            }
+
             const data = await response.json();
 
             if (data.success && data.imageUrl) {
                 setEbook((prev: any) => ({ ...prev, coverUrl: data.imageUrl }));
+
+                // Refresh credits
+                const token = localStorage.getItem('token');
+                fetch("http://localhost:3001/api/auth/me", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                })
+                    .then(res => res.json())
+                    .then(userData => {
+                        const updatedUser = { ...userData, token };
+                        localStorage.setItem('userInfo', JSON.stringify(updatedUser));
+                        window.dispatchEvent(new Event('userDataUpdated'));
+                    });
+
             } else {
-                alert("Erreur lors de la génération de la couverture");
+                alert(data.error || "Erreur lors de la génération de la couverture");
             }
         } catch (error) {
             console.error("Cover generation error:", error);
@@ -491,7 +517,7 @@ export function EbookEditor() {
                             className="w-full mt-2 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isGeneratingCover ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                            {isGeneratingCover ? 'Génération...' : "Générer avec l'IA"}
+                            {isGeneratingCover ? 'Génération...' : "Générer avec l'IA (50 crédits)"}
                         </button>
 
                         {ebook?.coverUrl && (
@@ -520,6 +546,13 @@ export function EbookEditor() {
                     </div>
                 </div>
             </div>
+
+            <NoCreditsModal
+                isOpen={showNoCreditsModal}
+                onClose={() => setShowNoCreditsModal(false)}
+                required={insufficientCreditDetails.required}
+                current={insufficientCreditDetails.current}
+            />
         </div>
     );
 }

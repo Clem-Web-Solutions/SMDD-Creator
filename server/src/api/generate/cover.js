@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { protect } from '../../middleware/authMiddleware.js';
 import Ebook from '../../models/Ebook.js';
+import User from '../../models/User.js';
 
 dotenv.config();
 
@@ -14,6 +15,16 @@ const openai = new OpenAI({
 
 router.post("/cover", protect, async (req, res) => {
     try {
+        const user = await User.findById(req.user._id);
+
+        if (user.credits < 50) {
+            return res.status(403).json({
+                error: "Crédits insuffisants. Il vous faut 50 crédits.",
+                required: 50,
+                current: user.credits
+            });
+        }
+
         const {
             ebookId,
             title,
@@ -61,6 +72,10 @@ router.post("/cover", protect, async (req, res) => {
         });
 
         const imageUrl = image.data[0].url;
+
+        // Update user credits
+        user.credits -= 50;
+        await user.save();
 
         // Optionally update the ebook directly if ID is provided
         if (ebookId) {
