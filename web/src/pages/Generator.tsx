@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { BookOpen, FileText, Sparkles, Wand2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,12 +23,219 @@ export function Generator() {
     const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
     const [insufficientCreditDetails, setInsufficientCreditDetails] = useState({ required: 100, current: 0 });
 
+    // Formation Steps
+    const [formationStep, setFormationStep] = useState<1 | 2>(1);
+    // const [slidePrompt, setSlidePrompt] = useState(''); // Removed simple prompt
+
+    // New Structured Formation Config
+    const [formationTitle, setFormationTitle] = useState('');
+    const [formationSubject, setFormationSubject] = useState('');
+    const [formationAudience, setFormationAudience] = useState('Débutants');
+    const [formationTone, setFormationTone] = useState('Pédagogique');
+    const [formationLanguage, setFormationLanguage] = useState('Français');
+    const [formationLength, setFormationLength] = useState('Moyen (8-12 slides)');
+
+    // Avatar State
+    const [avatarGender, setAvatarGender] = useState('Femme');
+    const [avatarAge, setAvatarAge] = useState('Trentenaire');
+    const [avatarStyle, setAvatarStyle] = useState('Professionnel');
+    const [avatarSetting, setAvatarSetting] = useState('Bureau Moderne');
+    const [avatarDetails, setAvatarDetails] = useState('');
+
+    // const [avatarDescription, setAvatarDescription] = useState(''); // Removed simple description
+    const [avatarVideoUrl, setAvatarVideoUrl] = useState<string | null>(null);
+    const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
+
+    async function generateAvatar() {
+        // Can add more specific validation if needed, but defaults are set.
+        // if (!avatarGender) ...
+
+        setIsGeneratingAvatar(true);
+
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert("Vous devez être connecté.");
+                navigate('/login');
+                return;
+            }
+
+            const response = await fetch("http://localhost:3001/api/avatar/generate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    gender: avatarGender,
+                    age: avatarAge,
+                    style: avatarStyle,
+                    setting: avatarSetting,
+                    details: avatarDetails
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Poll for status
+                checkAvatarStatus(data.video_id, token);
+            } else {
+                throw new Error(data.error || "Erreur lors de la génération");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Erreur: " + (error as Error).message);
+            setIsGeneratingAvatar(false);
+        }
+    }
+
+    const intervalRef = useRef<number | null>(null);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (intervalRef.current) window.clearInterval(intervalRef.current);
+        };
+    }, []);
+
+    async function checkAvatarStatus(videoId: string, token: string) {
+        // Clear existing interval if any
+        if (intervalRef.current) window.clearInterval(intervalRef.current);
+
+        intervalRef.current = window.setInterval(async () => {
+            try {
+                const response = await fetch(`http://localhost:3001/api/avatar/status/${videoId}`, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.status === 'completed' && data.video_url) {
+                    if (intervalRef.current) window.clearInterval(intervalRef.current);
+                    setAvatarVideoUrl(data.video_url);
+                    setIsGeneratingAvatar(false);
+
+                    // UPDATE USER DATA GLOBALLY
+                    try {
+                        const userRes = await fetch("http://localhost:3001/api/auth/me", {
+                            headers: { "Authorization": `Bearer ${token}` }
+                        });
+                        const userData = await userRes.json();
+                        // userData.avatar should now have 'latestFormationId' if backend supports it or we inferred it.
+                        // Actually, backend formationRoutes updates 'avatar' but maybe not 'latestFormationId'.
+                        // Wait, I commented out 'latestFormationId' in backend.
+                        // Ideally the polling response 'data' should include the formationId if it's a formation video.
+                        // For now, let's just rely on refreshing the user data which should have the latest structure if we saved it.
+
+                        const updatedUser = { ...userData, token };
+                        localStorage.setItem('userInfo', JSON.stringify(updatedUser));
+                        window.dispatchEvent(new Event('userDataUpdated'));
+                    } catch (err) {
+                        console.error("Failed to refresh user data:", err);
+                    }
+                } else if (data.status === 'failed') {
+                    if (intervalRef.current) window.clearInterval(intervalRef.current);
+                    alert("La génération de l'avatar a échoué.");
+                    setIsGeneratingAvatar(false);
+                }
+            } catch (error) {
+                console.error("Polling error:", error);
+                if (intervalRef.current) window.clearInterval(intervalRef.current);
+                setIsGeneratingAvatar(false);
+            }
+        }, 5000); // Poll every 5 seconds
+    }
+
+
     useEffect(() => {
         const type = searchParams.get('type');
         if (type === 'ebook' || type === 'formation') {
             setContentType(type);
         }
-    }, [searchParams]);
+
+        checkUserData();
+
+        window.addEventListener('userDataUpdated', checkUserData);
+        return () => window.removeEventListener('userDataUpdated', checkUserData);
+    }, [searchParams, contentType]);
+
+    function checkUserData() {
+        // Fetch user data to check for existing avatar
+        const token = localStorage.getItem('token');
+        if (token) {
+            fetch("http://localhost:3001/api/auth/me", {
+                headers: { "Authorization": `Bearer ${token}` }
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.avatar && data.avatar.videoId) {
+                        // Avatar exists
+                        if (data.avatar.videoUrl) {
+                            setAvatarVideoUrl(data.avatar.videoUrl);
+                        } else {
+                            checkAvatarStatus(data.avatar.videoId, token);
+                        }
+                        if (data.avatar.description) {
+                            // Map old description to details, or just ignore. 
+                            // Let's set it to details for now so the user sees something.
+                            setAvatarDetails(data.avatar.description);
+                        }
+                        // Advance to step 2 if we are in formation mode and avatar is ready/processing
+                        if (contentType === 'formation') {
+                            setFormationStep(2);
+                        }
+                    }
+                })
+                .catch(err => console.error("Failed to fetch user data:", err));
+        }
+    }
+
+    async function generateSlides() {
+        if (!formationSubject) {
+            alert("Veuillez décrire le sujet de la formation.");
+            return;
+        }
+
+        setIsGeneratingAvatar(true); // Reuse loading state or add new one? reused for simplicity for now
+        const token = localStorage.getItem('token');
+
+        try {
+            const response = await fetch('http://localhost:3001/api/formation/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    title: formationTitle,
+                    subject: formationSubject,
+                    audience: formationAudience,
+                    tone: formationTone,
+                    language: formationLanguage,
+                    slideCount: formationLength
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log("Formation generation started:", data);
+                // Start polling for this new video
+                // We can reuse checkAvatarStatus if we update the local stored ID? 
+                // Formation generation returns { success: true, video_id: ..., script: ... }
+                // We should probably store the 'formationId' if the backend returned it.
+                // But currently backend only returns video_id.
+                // We will poll for video status.
+                checkAvatarStatus(data.video_id, token!);
+            } else {
+                console.error("Formation generation failed:", data);
+                setIsGeneratingAvatar(false);
+            }
+        } catch (error) {
+            console.error("Error generating formation:", error);
+            setIsGeneratingAvatar(false);
+        }
+    }
 
     async function generateEbook() {
         if (!title || !subject) {
@@ -199,49 +406,245 @@ export function Generator() {
                 <AnimatePresence mode="wait">
                     {contentType === 'formation' ? (
                         <motion.div
-                            key="formation-avatar"
+                            key="formation-steps"
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                             transition={{ duration: 0.3 }}
                             className="space-y-6"
                         >
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-xl p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-blue-900/40">
-                                        1
+                            {formationStep === 1 && (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-xl p-6">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-blue-900/40">
+                                            1
+                                        </div>
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Création de l'Avatar IA</h3>
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Création de l'Avatar IA</h3>
-                                </div>
-                                <p className="text-slate-600 dark:text-slate-300 text-sm mb-6">
-                                    Pour créer votre formation, nous avons besoin de générer un présentateur virtuel.
-                                    Décrivez le style, la voix et la personnalité de votre avatar.
-                                </p>
-
-                                <div className="mb-4">
-                                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                        Description de l'Avatar
-                                    </label>
-                                    <textarea
-                                        rows={4}
-                                        placeholder="Décrivez votre avatar ici..."
-                                        className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 resize-none"
-                                    />
-                                </div>
-
-                                <div className="bg-slate-100 dark:bg-slate-950/50 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
-                                    <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase mb-1">Exemple de prompt</p>
-                                    <p className="text-sm text-slate-600 dark:text-slate-400 italic">
-                                        "Un formateur professionnel, homme, la trentaine, style business casual avec une chemise blanche.
-                                        Expression bienveillante et dynamique. Voix posée et claire, ton pédagogique et encourageant.
-                                        Fond de bureau moderne et lumineux."
+                                    <p className="text-slate-600 dark:text-slate-300 text-sm mb-6">
+                                        Pour créer votre formation, nous avons besoin de générer un présentateur virtuel.
+                                        Décrivez le style, la voix et la personnalité de votre avatar.
                                     </p>
-                                </div>
 
-                                <button className="mt-6 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-900/30 hover:shadow-blue-900/50">
-                                    Générer mon Avatar
-                                </button>
-                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Genre</label>
+                                            <select
+                                                value={avatarGender}
+                                                onChange={(e) => setAvatarGender(e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                            >
+                                                <option>Homme</option>
+                                                <option>Femme</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Âge</label>
+                                            <select
+                                                value={avatarAge}
+                                                onChange={(e) => setAvatarAge(e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                            >
+                                                <option>Jeune Adulte (20s)</option>
+                                                <option>Trentenaire (30s)</option>
+                                                <option>Senior (50+)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Style</label>
+                                            <select
+                                                value={avatarStyle}
+                                                onChange={(e) => setAvatarStyle(e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                            >
+                                                <option>Professionnel</option>
+                                                <option>Décontracté</option>
+                                                <option>Artistique</option>
+                                                <option>Futuriste</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Cadre / Fond</label>
+                                            <select
+                                                value={avatarSetting}
+                                                onChange={(e) => setAvatarSetting(e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                            >
+                                                <option>Bureau Moderne</option>
+                                                <option>Studio Minimaliste</option>
+                                                <option>Bibliothèque</option>
+                                                <option>Abstrait / Uni</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                            Détails Supplémentaires (Optionnel)
+                                        </label>
+                                        <textarea
+                                            rows={2}
+                                            value={avatarDetails}
+                                            onChange={(e) => setAvatarDetails(e.target.value)}
+                                            placeholder="Ex: Lunettes, cheveux courts, sourire..."
+                                            className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 resize-none"
+                                        />
+                                    </div>
+
+                                    <div className="bg-slate-100 dark:bg-slate-950/50 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
+                                        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase mb-1">Exemple de prompt</p>
+                                        <p className="text-sm text-slate-600 dark:text-slate-400 italic">
+                                            "Un formateur professionnel, homme, la trentaine, style business casual avec une chemise blanche.
+                                            Expression bienveillante et dynamique. Voix posée et claire, ton pédagogique et encourageant.
+                                            Fond de bureau moderne et lumineux."
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        onClick={generateAvatar}
+                                        disabled={isGeneratingAvatar}
+                                        className="mt-6 w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-900/30 hover:shadow-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {isGeneratingAvatar ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                                                <span>Génération de l'avatar...</span>
+                                            </>
+                                        ) : (
+                                            "Générer mon Avatar"
+                                        )}
+                                    </button>
+                                </div>
+                            )}
+
+                            {formationStep === 2 && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-500/30 rounded-xl p-6"
+                                >
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-purple-900/40">
+                                                2
+                                            </div>
+                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Scène & Contenu</h3>
+                                        </div>
+                                        <button
+                                            onClick={() => setFormationStep(1)}
+                                            className="text-xs text-slate-500 hover:text-blue-500 underline transition-colors"
+                                        >
+                                            Modifier l'avatar
+                                        </button>
+                                    </div>
+                                    <p className="text-slate-600 dark:text-slate-300 text-sm mb-6">
+                                        Votre avatar est prêt ! Maintenant, configurez le contenu pédagogique de votre formation.
+                                    </p>
+
+                                    {/* Title Field */}
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                            Titre de la Formation (Optionnel)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formationTitle}
+                                            onChange={(e) => setFormationTitle(e.target.value)}
+                                            placeholder="Ex: Introduction au Marketing Digital"
+                                            className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+
+                                    {/* Subject Field */}
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                            Sujet Détaillé
+                                        </label>
+                                        <textarea
+                                            rows={4}
+                                            value={formationSubject}
+                                            onChange={(e) => setFormationSubject(e.target.value)}
+                                            placeholder="Ex: Expliquer les bases du SEO, les mots-clés, et l'optimisation on-page..."
+                                            className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white resize-none"
+                                        />
+                                    </div>
+
+                                    {/* Config Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Public Cible</label>
+                                            <select
+                                                value={formationAudience}
+                                                onChange={(e) => setFormationAudience(e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                            >
+                                                <option>Débutants</option>
+                                                <option>Intermédiaires</option>
+                                                <option>Experts</option>
+                                                <option>Enfants / Ados</option>
+                                                <option>Grand Public</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Ton</label>
+                                            <select
+                                                value={formationTone}
+                                                onChange={(e) => setFormationTone(e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                            >
+                                                <option>Pédagogique</option>
+                                                <option>Professionnel</option>
+                                                <option>Inspirant</option>
+                                                <option>Humoristique</option>
+                                                <option>Direct & Concis</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Langue</label>
+                                            <select
+                                                value={formationLanguage}
+                                                onChange={(e) => setFormationLanguage(e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                            >
+                                                <option>Français</option>
+                                                <option>English</option>
+                                                <option>Español</option>
+                                                <option>Deutsch</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Longueur</label>
+                                            <select
+                                                value={formationLength}
+                                                onChange={(e) => setFormationLength(e.target.value)}
+                                                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white"
+                                            >
+                                                <option>Court (3-5 slides)</option>
+                                                <option>Moyen (8-12 slides)</option>
+                                                <option>Long (15-20 slides)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={generateSlides}
+                                        disabled={isGeneratingAvatar || !formationSubject}
+                                        className="mt-6 w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-purple-900/30 hover:shadow-purple-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isGeneratingAvatar ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                                                <span>Génération de la formation...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Wand2 size={20} />
+                                                <span>Générer les slides</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </motion.div>
+                            )}
                         </motion.div>
                     ) : (
                         <motion.div

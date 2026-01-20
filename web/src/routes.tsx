@@ -10,6 +10,7 @@ import { EbookEditor } from './pages/EbookEditor';
 import { MyFormations } from './pages/MyFormations';
 import { History } from './pages/History';
 import { Landing } from './pages/Landing';
+import { Presentation } from './pages/Presentation';
 import { PageTransition } from './components/PageTransition';
 import { MainLayout } from './layouts/MainLayout';
 import { LandingLayout } from './layouts/LandingLayout';
@@ -28,6 +29,9 @@ export function AppRoutes() {
                 <Route element={<LandingLayout><Outlet /></LandingLayout>}>
                     <Route path="/" element={<Landing />} />
                 </Route>
+
+                {/* Presentation Route (Standalone) */}
+                <Route path="/presentation/:id" element={<Presentation />} />
 
                 {/* Protected Routes with MainLayout */}
                 <Route element={<MainLayout />}>

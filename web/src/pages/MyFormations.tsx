@@ -2,50 +2,36 @@ import { GraduationCap, PlayCircle, Edit, Trash2, Calendar, LayoutList, Download
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
-const mockFormations = [
-    {
-        id: 1,
-        title: "Masterclass SEO 2024",
-        subject: "Marketing",
-        date: "10 Jan 2024",
-        modules: 8,
-        duration: "4h 30m",
-        status: "completed",
-        coverColor: "from-blue-600 to-indigo-600"
-    },
-    {
-        id: 2,
-        title: "Devenir Freelance",
-        subject: "Business",
-        date: "05 Jan 2024",
-        modules: 12,
-        duration: "6h 15m",
-        status: "completed",
-        coverColor: "from-emerald-500 to-teal-600"
-    },
-    {
-        id: 3,
-        title: "Introduction à Python",
-        subject: "Programmation",
-        date: "03 Jan 2024",
-        modules: 5,
-        duration: "2h 45m",
-        status: "draft",
-        coverColor: "from-amber-400 to-orange-500"
-    },
-    {
-        id: 4,
-        title: "Photographie Culinaire",
-        subject: "Art",
-        date: "28 Dec 2023",
-        modules: 6,
-        duration: "3h 10m",
-        status: "completed",
-        coverColor: "from-rose-500 to-pink-600"
-    },
-];
+// Removed mock data
+
+import { useState, useEffect } from 'react';
 
 export function MyFormations() {
+    const [formations, setFormations] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchFormations = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch("http://localhost:3001/api/formation", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setFormations(data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch formations", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchFormations();
+    }, []);
+
+    if (loading) return <div className="p-8 text-center text-white">Chargement...</div>;
     return (
         <div className="p-8 max-w-7xl mx-auto">
             <div className="flex justify-between items-end mb-8">
@@ -63,7 +49,7 @@ export function MyFormations() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {mockFormations.map((course, index) => (
+                {formations.map((course, index) => (
                     <motion.div
                         key={course.id}
                         initial={{ opacity: 0, y: 20 }}
@@ -76,7 +62,7 @@ export function MyFormations() {
                             <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />
                             <div className="relative z-10">
                                 <span className="bg-white/20 backdrop-blur-md text-white text-xs font-bold px-2 py-1 rounded-md border border-white/20">
-                                    {course.subject}
+                                    {course.subject || "Général"}
                                 </span>
                             </div>
                             <div className="relative z-10">
@@ -94,11 +80,11 @@ export function MyFormations() {
                             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-4">
                                 <div className="flex items-center gap-1.5">
                                     <Calendar size={14} />
-                                    <span>{course.date}</span>
+                                    <span>{new Date(course.createdAt).toLocaleDateString()}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <LayoutList size={14} />
-                                    <span>{course.modules} modules</span>
+                                    <span>{course.slides ? course.slides.length : 0} slides</span>
                                 </div>
                             </div>
 
@@ -114,9 +100,11 @@ export function MyFormations() {
                                 )}
 
                                 <div className="flex items-center gap-1">
-                                    <button className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Éditer">
-                                        <Edit size={18} />
-                                    </button>
+                                    <Link to={`/presentation/${course._id}`}>
+                                        <button className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Voir">
+                                            <PlayCircle size={18} />
+                                        </button>
+                                    </Link>
                                     <button className="p-2 text-slate-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors" title="Télécharger">
                                         <Download size={18} />
                                     </button>
@@ -134,7 +122,7 @@ export function MyFormations() {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: mockFormations.length * 0.05 }}
+                        transition={{ duration: 0.3, delay: formations.length * 0.05 }}
                         className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500/50 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-all cursor-pointer group flex flex-col items-center justify-center p-8 min-h-[300px] h-full"
                     >
                         <div className="w-16 h-16 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">

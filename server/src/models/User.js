@@ -27,6 +27,21 @@ const userSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now
+    },
+    avatar: {
+        videoId: String,
+        description: String,
+        gender: String, // 'Homme', 'Femme'
+        generatedAt: Date,
+        videoUrl: String,
+        status: String,
+        talkingPhotoId: String,
+        previewUrl: String,
+        slides: [{
+            title: String,
+            content: [String],
+            imagePrompt: String
+        }]
     }
 });
 

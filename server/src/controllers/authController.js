@@ -89,6 +89,7 @@ const getMe = async (req, res) => {
             email: user.email,
             plan: user.plan,
             credits: user.credits,
+            avatar: user.avatar
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

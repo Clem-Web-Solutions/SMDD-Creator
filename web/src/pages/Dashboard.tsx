@@ -1,10 +1,14 @@
 import { DashboardStats } from '../components/DashboardStats';
 import { DashboardCharts } from '../components/DashboardCharts';
-import { Clock, Download, MoreVertical, Plus, Star } from 'lucide-react';
+import { Download, MoreVertical, Plus } from 'lucide-react';
+import { useState } from 'react';
 
 export function Dashboard() {
-    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
-    const userName = userInfo.name || 'Utilisateur';
+    const [user] = useState<any>(() => {
+        const userInfoStr = localStorage.getItem('userInfo');
+        return userInfoStr ? JSON.parse(userInfoStr) : null;
+    });
+    const userName = user?.name || 'Utilisateur';
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -56,6 +60,7 @@ export function Dashboard() {
 
                 </div>
             </div>
+
         </div>
     );
 }
