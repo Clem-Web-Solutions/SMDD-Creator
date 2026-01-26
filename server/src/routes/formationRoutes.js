@@ -27,17 +27,30 @@ router.post('/generate', async (req, res) => {
         console.log(`Début de la génération de formation pour l'utilisateur ${userId}`);
 
         // 1. Retrieve User
+        // 1. Retrieve User
         const user = await User.findById(userId);
-        if (!user || !user.avatar || !user.avatar.talkingPhotoId) {
-            return res.status(404).json({ error: "Avatar introuvable. Veuillez d'abord générer un avatar." });
+        if (!user || !user.avatar) {
+            return res.status(404).json({ error: "Avatar introuvable. Veuillez d'abord sélectionner ou générer un avatar." });
         }
-        const talkingPhotoId = user.avatar.talkingPhotoId;
+
+        const avatarType = user.avatar.type || 'talking_photo'; // Default to legacy
+        const avatarId = user.avatar.avatarId || user.avatar.talkingPhotoId;
+
+        if (!avatarId) {
+            return res.status(404).json({ error: "ID d'avatar introuvable." });
+        }
 
         // 2. Determine Voice based on Gender
-        const userGender = user.avatar.gender || 'Femme'; // Default to Femme if missing
-        const voiceId = (userGender === 'Femme' || userGender === 'Woman')
-            ? "f9836c6e83964fb382756532cb896fd1" // Mathilde (French Female)
-            : "57d7ad91fcdb41b49f3475b0bfd95034"; // Étienne (French Male)
+        // Strict mapping: Homme -> Henri (Male), Femme -> Coralie (Female)
+        // Normalize gender string for comparison
+        const userGender = (user.avatar.gender || 'Femme').toLowerCase();
+
+        let voiceId;
+        if (userGender === 'homme' || userGender === 'man' || userGender === 'male') {
+            voiceId = "b32ea9471bb74ee688b75dde1e2ae6d7"; // Henri (French Male)
+        } else {
+            voiceId = "80f371302eaa4404870daa41dc62423c"; // Coralie (French Female - default)
+        }
 
         // 3. Generate Content (Script + Slides) with OpenAI
         console.log("2. Génération du contenu structuré avec OpenAI...");
@@ -63,7 +76,7 @@ Structure for each section:
   "slide": {
     "title": "Slide Headline",
     "content": ["Bullet point 1", "Bullet point 2", "Bullet point 3"],
-    "imagePrompt": "Abstract, modern, minimalist background description related to the topic. High quality, 4k."
+    "imagePrompt": "A highly detailed, photorealistic image depicting the core concept of this slide. Use concrete visual elements (e.g., 'a team of diverse professionals analyzing a graph on a tablet' instead of 'business concept'). Aesthetic: Cinematic lighting, professional, 4k."
   }
 }
 
@@ -95,18 +108,31 @@ REQUIREMENTS:
         // 4. Concatenate Script for HeyGen Video
         // HeyGen generates one video file. content needs to be sequential.
         // We add small pauses between sections for natural flow.
-        const fullScript = sections.map(s => s.script).join(" <break time='1.0s' /> ");
+        // Note: SSML tags like <break> might be read aloud by some voices. Using natural markers.
+        const fullScript = sections.map(s => s.script).join(" ... ");
 
         console.log("3. Génération de la vidéo avec HeyGen...");
         console.log(`Script complet (${fullScript.length} chars)`);
 
+        // Construct Character Payload based on Type
+        let characterPayload;
+        if (avatarType === 'avatar') {
+            characterPayload = {
+                type: "avatar",
+                avatar_id: avatarId,
+                avatar_style: "normal" // Default style for studio avatars
+            };
+        } else {
+            characterPayload = {
+                type: "talking_photo",
+                talking_photo_id: avatarId
+            };
+        }
+
         const videoGenerationResponse = await axios.post('https://api.heygen.com/v2/video/generate', {
             video_inputs: [
                 {
-                    character: {
-                        type: "talking_photo",
-                        talking_photo_id: talkingPhotoId
-                    },
+                    character: characterPayload,
                     voice: {
                         type: "text",
                         voice_id: voiceId,
@@ -163,6 +189,13 @@ REQUIREMENTS:
         });
 
     } catch (error) {
+        const errorLog = `[${new Date().toISOString()}] Formation Generation Error: ${error.message}\nDetails: ${JSON.stringify(error.response ? error.response.data : {}, null, 2)}\n\n`;
+        // Use fs (need to import it)
+        try {
+            const fs = await import('fs');
+            fs.appendFileSync('server.log', errorLog);
+        } catch (e) { console.error("Could not write to log file"); }
+
         console.error("Erreur génération formation:", error.response ? error.response.data : error.message);
         res.status(500).json({
             error: "Erreur lors de la génération de la formation",
@@ -192,14 +225,45 @@ router.get('/', async (req, res) => {
 // @access  Private
 router.get('/:id', async (req, res) => {
     try {
-        const formation = await Formation.findById(req.params.id);
+        let formation = await Formation.findById(req.params.id);
         if (!formation) return res.status(404).json({ error: "Formation non trouvée" });
 
-        // Check ownership? 
+        // Check ownership (optional but recommended)
         // if (formation.userId.toString() !== req.user.id) ...
+
+        // NEW: Check status if pending or videoUrl is missing but videoId exists
+        if (formation.videoId && (!formation.videoUrl || formation.status === 'pending')) {
+            try {
+                console.log(`[DEBUG] Checking HeyGen status for ${formation.videoId}...`);
+                const statusResponse = await axios.get(`https://api.heygen.com/v1/video_status.get?video_id=${formation.videoId}`, {
+                    headers: { 'X-Api-Key': HEYGEN_API_KEY }
+                });
+                const data = statusResponse.data.data || statusResponse.data;
+                console.log(`[DEBUG] HeyGen Response for ${formation.videoId}:`, JSON.stringify(data));
+
+                if ((data.status === 'completed' || data.status === 'success') && data.video_url) {
+                    console.log(`[SUCCESS] Video completed! Updating URL: ${data.video_url}`);
+                    formation.videoUrl = data.video_url;
+                    formation.status = 'completed';
+                    await formation.save();
+                } else if (data.status === 'failed') {
+                    console.error("[FAILED] Video generation failed:", data.error);
+                    formation.status = 'failed';
+                    await formation.save();
+                } else {
+                    console.log(`[PENDING] Status: ${data.status}`);
+                    // Still processing
+                }
+            } catch (err) {
+                console.error("[ERROR] Failed to check video status:", err.message);
+                if (err.response) console.error("[ERROR DETAILS]", err.response.data);
+                // Don't fail the request, just return existing data
+            }
+        }
 
         res.json(formation);
     } catch (error) {
+        console.error("Error getting formation:", error);
         res.status(500).json({ error: "Erreur serveur" });
     }
 });

@@ -54,25 +54,36 @@ router.post("/ebook", protect, async (req, res) => {
         user.credits -= requiredCredits;
         await user.save();
 
-        const prompt = `Tu es un expert en rédaction d'ebooks pédagogiques.
-        Génère un PLAN DÉTAILLÉ et le CONTENU COMPLET pour un ebook sur le sujet : "${subject}" (Titre : ${title}).
+        const prompt = `Tu es un expert reconnu en rédaction de livres pédagogiques de haute qualité (style éditorial, complet et engageant).
         
-        INSTRUCTIONS OBLIGATOIRES :
+        TA MISSIONS :
+        Rédiger un Ebook complet sur le sujet : "${subject}" (Titre : ${title}).
+        
+        INSTRUCTIONS STRICTES DE STRUCTURE :
         1. Tu dois répondre UNIQUEMENT avec un objet JSON valide.
-        2. La structure du JSON doit être : { "chapters": [ { "title": "...", "content": "..." } ] }
-        3. Génère EXACTEMENT ${targetChapterCount} chapitres distincts (pour faire un ebook de ${targetChapterCount} pages).
-        4. Le contenu de chaque chapitre doit être formaté en HTML (h2, p, ul, strong) mais SANS <html> ni <body>, juste le corps du texte.
-        5. Sois très verbeux, développe les idées en profondeur.
+        2. Format JSON attendu : { "chapters": [ { "title": "...", "content": "..." } ] }
+        3. Génère EXACTEMENT ${targetChapterCount} chapitres.
         
-        Langue: ${language}
-        Ton: ${tone}
+        QUALITÉ DU CONTENU (CRITIQUE pour l'utilisateur) :
+        - Le contenu NE DOIT PAS être générique ou superficiel.
+        - Chaque chapitre doit être RICHE, DENSE et PRATIQUE (minimum 400 mots par chapitre).
+        - Structure OBLIGATOIRE pour le contenu de CHAQUE chapitre (en HTML) :
+          a) <h2>Introduction</h2> : Accroche contextuelle.
+          b) <h2>Concepts Clés</h2> : Explication approfondie, nuances, définitions.
+          c) <h2>Exemple Concret</h2> : Un cas pratique, une anecdote ou une mise en situation réelle pour illustrer.
+          d) <h2>Conseils Pratiques</h2> : Une liste à puces (<ul>) de recommandations actionnables.
+          e) <h2>Conclusion</h2> : Résumé et transition.
+        
+        - Utilise un ton : "${tone}".
+        - Langue : ${language}.
+        - N'utilise pas de balises <html>, <head> ou <body>, juste le contenu (h2, p, ul, strong).
         `;
 
         const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo-1106", // Supports JSON mode
+            model: "gpt-4o", // Upgraded for better reasoning and content richness
             response_format: { type: "json_object" },
             messages: [
-                { role: "system", content: "Tu es un assistant qui génère toujours du JSON valide." },
+                { role: "system", content: "Tu es un auteur expert. Tu génères du contenu riche, détaillé et structuré en JSON." },
                 { role: "user", content: prompt }
             ]
         });

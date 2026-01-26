@@ -7,17 +7,16 @@ import { Button } from './ui/Button';
 interface AvatarSuccessModalProps {
     isOpen: boolean;
     onClose: () => void;
-    avatar: {
-        previewUrl?: string;
-        videoUrl?: string;
-        status?: string;
-        description?: string;
-        latestFormationId?: string; // New field to link to specific formation
-    };
+    onContinue: () => void;
+    videoUrl?: string | null;
+    avatar?: any; // Legacy prop support
 }
 
-export const AvatarSuccessModal: React.FC<AvatarSuccessModalProps> = ({ isOpen, onClose, avatar }) => {
+export const AvatarSuccessModal: React.FC<AvatarSuccessModalProps> = ({ isOpen, onClose, onContinue, videoUrl, avatar }) => {
     const navigate = useNavigate();
+
+    // Fallback if using legacy avatar prop
+    const finalVideoUrl = videoUrl || avatar?.videoUrl;
 
     return (
         <AnimatePresence>
@@ -48,49 +47,24 @@ export const AvatarSuccessModal: React.FC<AvatarSuccessModalProps> = ({ isOpen, 
                         {/* Content */}
                         <div className="p-6 space-y-6">
                             <p className="text-gray-400">
-                                Votre avatar a été créé avec succès. Il apparaîtra ici et dans votre profil.
+                                Votre présentateur virtuel est prêt.
                             </p>
 
-                            <div className="relative overflow-hidden rounded-xl bg-white/5 aspect-video group">
-                                {avatar.videoUrl ? (
+                            <div className="relative overflow-hidden rounded-xl bg-white/5 aspect-square group">
+                                {finalVideoUrl ? (
                                     <video
-                                        src={avatar.videoUrl}
+                                        src={finalVideoUrl}
                                         controls
                                         autoPlay
                                         loop
                                         className="object-cover w-full h-full"
                                     />
-                                ) : avatar.previewUrl ? (
-                                    <>
-                                        <img
-                                            src={avatar.previewUrl}
-                                            alt="Avatar Preview"
-                                            className="object-cover w-full h-full"
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                                            <div className="flex flex-col items-center gap-2 p-4 text-center rounded-xl bg-black/60 backdrop-blur-md border border-white/10">
-                                                <div className="p-3 bg-purple-500/20 rounded-full animate-pulse">
-                                                    <Video className="w-6 h-6 text-purple-400" />
-                                                </div>
-                                                <span className="text-sm font-medium text-white">Vidéo en cours de génération...</span>
-                                                <span className="text-xs text-gray-400">Cela peut prendre quelques minutes.</span>
-                                            </div>
-                                        </div>
-                                    </>
                                 ) : (
                                     <div className="flex flex-col items-center justify-center w-full h-full text-gray-500">
-                                        <ImageIcon className="w-12 h-12 mb-2 opacity-20" />
-                                        <span>Aperçu indisponible</span>
+                                        <div className="animate-pulse w-full h-full bg-white/5" />
                                     </div>
                                 )}
                             </div>
-
-                            {avatar.description && (
-                                <div className="p-4 rounded-lg bg-white/5 border border-white/5">
-                                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Prompt / Description</span>
-                                    <p className="mt-1 text-sm text-gray-300 line-clamp-2">{avatar.description}</p>
-                                </div>
-                            )}
                         </div>
 
                         {/* Footer */}
@@ -99,15 +73,8 @@ export const AvatarSuccessModal: React.FC<AvatarSuccessModalProps> = ({ isOpen, 
                                 Fermer
                             </Button>
 
-                            <Button variant="primary" onClick={() => {
-                                onClose();
-                                if (avatar.latestFormationId) {
-                                    navigate(`/presentation/${avatar.latestFormationId}`);
-                                } else {
-                                    navigate('/formations'); // Fallback to list
-                                }
-                            }}>
-                                Voir la présentation
+                            <Button variant="primary" onClick={onContinue}>
+                                Générer les slides
                             </Button>
                         </div>
                     </motion.div>

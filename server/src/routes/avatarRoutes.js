@@ -1,25 +1,23 @@
 import express from 'express';
 import axios from 'axios';
 import User from '../models/User.js';
+import OpenAI from 'openai';
 
 const router = express.Router();
 
 const HEYGEN_API_KEY = process.env.HEYGEN_API_KEY;
 const HEYGEN_URL = 'https://api.heygen.com/v2/video/generate';
 
-// @route   POST /api/avatar/generate
-// @desc    Generate a new avatar video and save to user profile
-// @access  Private (requires authentication middleware in main app)
-import OpenAI from 'openai';
+const VOICE_IDS = {
+    MALE: "b32ea9471bb74ee688b75dde1e2ae6d7", // Henri (French Male)
+    FEMALE: "80f371302eaa4404870daa41dc62423c" // Coralie (French Female)
+};
 
 // Initialize OpenAI
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
-// @route   POST /api/avatar/generate
-// @desc    Generate a new avatar video (Custom Talking Photo) and save to user profile
-// @access  Private
 // @route   POST /api/avatar/generate
 // @desc    Generate a new avatar video (Custom Talking Photo) and save to user profile
 // @access  Private
@@ -37,39 +35,37 @@ router.post('/generate', async (req, res) => {
             const genderMap = { 'Homme': 'Man', 'Femme': 'Woman' };
             const ageMap = { 'Jeune Adulte (20s)': 'Young Adult', 'Trentenaire (30s)': 'Middle Aged', 'Senior (50+)': 'Senior' };
             const styleMap = { 'Professionnel': 'Professional corporate headshot', 'Décontracté': 'Casual friendly portrait', 'Artistique': 'Artistic stylized portrait', 'Futuriste': 'Futuristic sci-fi portrait' };
-            const settingMap = { 'Bureau Moderne': 'modern office background', 'Studio Minimaliste': 'minimalist studio background', 'Bibliothèque': 'library background', 'Abstrait / Uni': 'abstract gradient background' };
+
+            // Updated setting to include chair and gestures as requested
+            const selectedSetting = 'sitting comfortably on a sleek leather office chair, isolated on solid pure white background, high key lighting, commercial photography style';
 
             const selectedGender = genderMap[gender] || 'Woman';
             const selectedAge = ageMap[age] || 'Young Adult';
             const selectedStyle = styleMap[style] || 'Professional corporate headshot';
-            const selectedSetting = settingMap[setting] || 'modern office background';
 
-            description = `A ${selectedStyle} of a ${selectedAge} ${selectedGender}, looking directly at the camera, highly detailed, photorealistic, ${selectedSetting}. ${details || ''}`;
+            description = `Wide waist-up shot of a ${selectedAge} ${selectedGender}, ${selectedStyle}, sitting comfortably on a leather chair, hands resting naturally on knees, relaxed posture, perfectly centered composition, leaving headroom, high fidelity, 8k resolution, ${selectedSetting}. ${details || ''}`;
         }
 
         if (!description) {
             return res.status(400).json({ error: "Description ou paramètres requis !" });
         }
 
+        // HeyGen limit is 1000 chars. Truncate if necessary.
+        if (description.length > 990) {
+            console.warn("Prompt too long, truncating...");
+            description = description.substring(0, 990);
+        }
+
         console.log(`Début du processus pour l'utilisateur ${userId}`);
         console.log(`Prompt généré: ${description}`);
 
         // 0. Analyze text to get attributes (Age, Gender, Ethnicity) explicitly required by HeyGen
-        // We can skip OpenAI analysis if we have structured inputs, but HeyGen needs specific enum values.
-        // Let's rely on our explicit mapping for 'age' and 'gender' which we already have.
-        // For 'ethnicity' and 'pose', we can default or infer.
-
         let attributes = {
-            age: (age === 'Senior (50+)' ? 'Older' : 'Young Adult'), // HeyGen might have specific age enums
+            age: (age === 'Senior (50+)' ? 'Older' : 'Young Adult'),
             gender: (gender === 'Homme' ? 'Man' : 'Woman'),
             ethnicity: "White",
             pose: "half_body"
         };
-
-        // Actually, let's keep the OpenAI analysis for robustness if the user provided custom details that override standard traits?
-        // Or to just ensure valid JSON for HeyGen if we don't trust our mapping.
-        // But for speed and cost, direct mapping is better.
-        // Let's just use the OpenAI helper for 'ethnicity' since we don't capture it yet.
 
         console.log("0. Analyse du prompt pour extraction des attributs (Ethnicity/Pose)...");
         try {
@@ -84,8 +80,16 @@ router.post('/generate', async (req, res) => {
                 model: "gpt-3.5-turbo",
                 response_format: { type: "json_object" }
             });
-            attributes = JSON.parse(analysisCompletion.choices[0].message.content);
-            console.log("Attributs détectés:", attributes);
+            const detectedAttributes = JSON.parse(analysisCompletion.choices[0].message.content);
+
+            // Merge detected attributes but FORCE the user-selected gender
+            attributes = {
+                ...attributes,
+                ...detectedAttributes,
+                gender: (gender === 'Homme' ? 'Man' : 'Woman') // STRICT OVERRIDE
+            };
+
+            console.log("Attributs finaux (Gender Forced):", attributes);
         } catch (e) {
             console.error("Erreur analyse attributs, utilisation defaults:", e.message);
         }
@@ -101,15 +105,13 @@ router.post('/generate', async (req, res) => {
             age: attributes.age || "Young Adult",
             gender: attributes.gender || "Woman", // Use detected or default
             ethnicity: attributes.ethnicity || "White",
-            pose: attributes.pose || "half_body"
+            pose: "half_body" // FORCE HALF_BODY for hands visibility
         }, {
             headers: {
                 'X-Api-Key': HEYGEN_API_KEY,
                 'Content-Type': 'application/json'
             }
         });
-
-
 
         const imageGenerationId = generateImageResponse.data.data.generation_id;
         console.log("HeyGen Image Job ID:", imageGenerationId);
@@ -134,14 +136,23 @@ router.post('/generate', async (req, res) => {
 
                 if (statusData.status === 'completed' || statusData.status === 'success') { // 'success' is sometimes returned by v2
                     console.log("Polling Success Data:", JSON.stringify(statusData, null, 2));
-                    imageUrl = statusData.image_url || statusData.image_url_list[0]; // v2 might return list
-                    imageKey = statusData.image_key || (statusData.image_key_list ? statusData.image_key_list[0] : null);
+
+                    // CRITICAL FIX: Prefer specific image from list to avoid 4-image grid
+                    if (statusData.image_url_list && statusData.image_url_list.length > 0) {
+                        // Pick the first one
+                        imageUrl = statusData.image_url_list[0];
+                        // Get corresponding key
+                        imageKey = statusData.image_key_list ? statusData.image_key_list[0] : (statusData.image_key || null);
+                    } else {
+                        imageUrl = statusData.image_url;
+                        imageKey = statusData.image_key;
+                    }
+
                 } else if (statusData.status === 'failed') {
                     throw new Error("HeyGen Image Generation Failed: " + (statusData.error || "Unknown error"));
                 }
             } catch (err) {
                 console.error("Polling error:", err.message);
-                // Continue polling if network glitch, or throw if it was a definitive failure logic above
                 if (err.message.includes("HeyGen Image Generation Failed")) throw err;
             }
         }
@@ -150,23 +161,9 @@ router.post('/generate', async (req, res) => {
             throw new Error("Timeout waiting for HeyGen Image Generation");
         }
 
-        // We also need the image_key for creating the Avatar Group (Talking Photo)
-        // If the polling data didn't contain it (e.g. earlier failures), we might need to rely on Upload Asset,
-        // BUT for generated images, the image_key is in the polling success data.
-        // Let's ensure we captured it. 
-        // Note: The variable 'imageUrl' is set in the loop. Let's add 'imageKey' variable outside.
-
-        // Re-implement the polling loop extraction to get imageKey
-        // ... (Since I cannot easily edit the loop above without replacing it, I will assume 'imageKey' is available or I will re-fetch it from upload if missing)
-        // Actually, better to modify the loop above to capture imageKey.
-
-        // Let's modify the PREVIOUS block (the polling loop) first to capture imageKey.
-        // Wait, multi_replace cannot modify previous blocks if I don't target them.
-        // I will target the loop and the subsequent creation step in one go or separate chunks.
-
-        // ...
-
         if (!imageKey) {
+            console.warn("WARN: Image Key missing, attempting to resolve or use URL upload fallback...");
+            // Not implemented fallback, throwing for now as v2 usually returns keys
             throw new Error("Image Key not found after HeyGen Image Generation. Cannot create Talking Photo.");
         }
 
@@ -180,24 +177,15 @@ router.post('/generate', async (req, res) => {
             createAvatarGroupResponse = await axios.post('https://api.heygen.com/v2/photo_avatar/avatar_group/create', {
                 name: `AvatarGroup-${userId}-${Date.now()}`,
                 image_key: imageKey,
-                // You might need to specify other parameters like 'type' or 'style' if the API requires it.
-                // Based on typical usage, 'image_key' is the primary identifier for a generated image.
             }, {
                 headers: {
                     'X-Api-Key': HEYGEN_API_KEY,
                     'Content-Type': 'application/json'
                 }
             });
-            // The response should contain the talking_photo_id? Or just the group ID?
-            // Documentation says "Create Photo Avatar Group... generally involves... ultimately leads to talking_photo_id".
-            // Usually creating a group *with one photo* is enough to get a talking_photo_id (look ID).
+
             console.log("Reponse Creation Groupe:", JSON.stringify(createAvatarGroupResponse.data, null, 2));
 
-            // Inspect response structure. Usually data.data.id (group id) or data.data.talking_photo_id?
-            // If it returns a group ID, we might need to "Generate Look" or "List Looks"?
-            // But let's assume for a single photo group, it might return the ID or we use the group ID as talking_photo_id?
-            // Actually, the previous 'photar_not_found' suggests we need a specific ID type.
-            // Let's log and see. For now, try to grab 'id' or 'talking_photo_id'.
             talkingPhotoId = createAvatarGroupResponse.data.data.id || createAvatarGroupResponse.data.data.avatar_group_id || createAvatarGroupResponse.data.data.talking_photo_id;
             console.log("Talking Photo ID créée via Avatar Group:", talkingPhotoId);
 
@@ -216,20 +204,6 @@ router.post('/generate', async (req, res) => {
                 await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3s
 
                 try {
-                    // There isn't a direct "Get Group Status" endpoint widely documented in simple terms, 
-                    // but List Avatar Groups returns status. 
-                    // OR List Avatars in Group: GET /v2/photo_avatar/avatar_group/{id}/avatars matches logical REST patterns.
-                    // Let's try listing avatars in the group to see if they are ready. 
-                    // Or checking the group list.
-
-                    // Let's try fetching the group details if an endpoint exists, or list groups and find ours.
-                    // Trying a direct GET /v2/avatar_groups/{id} or /v2/photo_avatar/avatar_group/{id} is a good guess.
-                    // But list is safer.
-
-                    // Only if the previous creation response said "pending".
-                    // Actually, let's just wait a bit blindly if we don't find a status endpoint, 
-                    // but better to poll "List Avatars in Group" -> /v2/photo_avatar/avatar_group/{id}/avatars
-
                     const groupCheckResponse = await axios.get(`https://api.heygen.com/v2/avatar_group/${talkingPhotoId}/avatars`, {
                         headers: { 'X-Api-Key': HEYGEN_API_KEY }
                     });
@@ -243,23 +217,17 @@ router.post('/generate', async (req, res) => {
                         if (firstAvatar.status === 'completed' || firstAvatar.status === 'ready') {
                             groupStatus = 'completed';
                             // CRITICAL: The ID needed for video generation might be the AVATAR ID, not the Group ID.
-                            // Let's update talkingPhotoId if available.
                             if (firstAvatar.id) {
                                 console.log("Mise à jour de talkingPhotoId avec l'ID de l'avatar trouvé:", firstAvatar.id);
                                 talkingPhotoId = firstAvatar.id;
                             }
                         }
                     } else {
-                        if (groupAttempts % 5 === 0) {
-                            console.log(`Polling Group Status (${groupAttempts}/${maxGroupAttempts}): No avatars found yet...`);
-                        }
+                        if (groupAttempts % 5 === 0) console.log(`Polling Group Status (${groupAttempts}/${maxGroupAttempts}): No avatars found yet...`);
                     }
 
                 } catch (err) {
                     console.log("Polling Group Error (ignoring):", err.message);
-                    if (err.response && err.response.status === 404) {
-                        // Maybe endpoint is wrong, or group not ready.
-                    }
                 }
             }
 
@@ -268,18 +236,17 @@ router.post('/generate', async (req, res) => {
             } else {
                 console.log("Avatar Group Ready!");
             }
-            // "talking_photo_id" is usually for a specific *look*.
-            // Only one way to find out: TRY. And log.
         } catch (error) {
             console.error("Erreur Création Avatar Group:", error.response ? error.response.data : error.message);
             throw error;
         }
 
-        console.log("Talking Photo ID créée via Avatar Group:", talkingPhotoId);
+        console.log("Talking Photo ID finie:", talkingPhotoId);
 
-
-        // Step 3: Prepare Payload for HeyGen Video
-        const speechText = "Bonjour ! Je suis votre nouvel avatar généré par IA. " + text;
+        // Step 3: Prepare Payload for HeyGen Video (Intro Video)
+        const speechText = text
+            ? "Bonjour ! Je suis votre nouvel avatar généré par IA. " + text
+            : "Bonjour ! Je suis votre nouvel avatar interactif. Je suis prêt à animer vos formations et à présenter vos contenus. N'hésitez pas à lancer une génération pour me voir en action.";
 
         const payload = {
             video_inputs: [
@@ -291,17 +258,18 @@ router.post('/generate', async (req, res) => {
                     voice: {
                         type: "text",
                         input_text: speechText,
-                        voice_id: voice_id || "1bd001e7e50f421d891986aad5158bc8"
+                        // Select voice based on gender (Coralie for Female, Henri for Male)
+                        voice_id: voice_id || (attributes.gender === 'Man' ? VOICE_IDS.MALE : VOICE_IDS.FEMALE)
                     },
                     background: {
                         type: "color",
-                        value: "#FAFAFA"
+                        value: "#FFFFFF"
                     }
                 }
             ],
             test: false,
             dimension: {
-                width: 1200,
+                width: 1200, // Square video for profile
                 height: 1200
             }
         };
@@ -323,8 +291,8 @@ router.post('/generate', async (req, res) => {
             await User.findByIdAndUpdate(userId, {
                 avatar: {
                     videoId: videoId,
-                    description: description, // Save the constructed description
-                    gender: gender, // Save the gender (structured)
+                    description: description,
+                    gender: gender,
                     generatedAt: new Date(),
                     talkingPhotoId: talkingPhotoId,
                     previewUrl: imageUrl,
@@ -364,9 +332,7 @@ router.get('/status/:videoId', async (req, res) => {
             }
         });
 
-        const data = response.data.data || response.data; // Handle potential API response variations
-
-        // console.log("Status HeyGen pour", videoId, ":", JSON.stringify(data, null, 2));
+        const data = response.data.data || response.data;
 
         // Update user profile if completed
         if (data.status === 'completed' && data.video_url && req.user) {
@@ -387,6 +353,72 @@ router.get('/status/:videoId', async (req, res) => {
             success: false,
             error: error.response ? error.response.data : "Erreur interne lors de la vérification du statut"
         });
+    }
+});
+
+// @route   GET /api/avatar/list
+// @desc    List available Studio Avatars from HeyGen
+// @access  Private
+router.get('/list', async (req, res) => {
+    try {
+        console.log("Fetching HeyGen Avatars...");
+        const response = await axios.get('https://api.heygen.com/v2/avatars', {
+            headers: {
+                'X-Api-Key': HEYGEN_API_KEY
+            }
+        });
+
+        // The API returns a list of avatars. We want to filter for "Studio Avatars" (usually type 'avatar' or flagged).
+        // Let's inspect the first few to be sure, but for now pass them through.
+        // We'll filter on the frontend or just send the raw list.
+        const avatars = response.data.data.avatars || [];
+
+        // Simple filtering to remove obviously wrong ones if needed, but HeyGen usually returns a clean list.
+        // We specifically want 'interactive' or 'studio' avatars if distinguishable.
+        // For now, return all and let frontend decide/display.
+
+        res.json({
+            success: true,
+            avatars: avatars
+        });
+
+    } catch (error) {
+        console.error("Erreur List Avatars:", error.response ? error.response.data : error.message);
+        res.status(500).json({ error: "Impossible de récupérer les avatars" });
+    }
+});
+
+// @route   POST /api/avatar/select
+// @desc    Select an existing Studio Avatar and save to profile
+// @access  Private
+router.post('/select', async (req, res) => {
+    try {
+        const { avatarId, name, previewUrl, gender } = req.body;
+        const userId = req.user ? req.user.id : null;
+
+        if (!userId) return res.status(401).json({ error: "Non autorisé" });
+        if (!avatarId) return res.status(400).json({ error: "Avatar ID requis" });
+
+        console.log(`User ${userId} selected Studio Avatar: ${avatarId} (${name})`);
+
+        await User.findByIdAndUpdate(userId, {
+            avatar: {
+                type: 'avatar', // Explicitly mark as Studio Avatar
+                avatarId: avatarId, // Store the Studio ID
+                talkingPhotoId: null, // Clear generated ID
+                name: name,
+                previewUrl: previewUrl,
+                gender: gender,
+                status: 'completed', // It's ready to use immediately
+                generatedAt: new Date()
+            }
+        });
+
+        res.json({ success: true, message: "Avatar sélectionné avec succès" });
+
+    } catch (error) {
+        console.error("Erreur Selection Avatar:", error);
+        res.status(500).json({ error: "Erreur lors de la sauvegarde de l'avatar" });
     }
 });
 

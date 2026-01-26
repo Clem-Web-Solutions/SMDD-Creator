@@ -14,6 +14,18 @@ const ebookSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    author: {
+        type: String,
+        required: false
+    },
+    subtitle: {
+        type: String,
+        required: false
+    },
+    coverFont: {
+        type: String,
+        default: 'Inter'
+    },
     language: {
         type: String,
         default: 'Français'

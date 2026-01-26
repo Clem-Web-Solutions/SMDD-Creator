@@ -33,6 +33,42 @@ const getEbookById = async (req, res) => {
     }
 };
 
+// @desc    Update ebook
+// @route   PUT /api/ebooks/:id
+// @access  Private
+const updateEbook = async (req, res) => {
+    try {
+        const ebook = await Ebook.findById(req.params.id);
+
+        if (ebook) {
+            // Verify ownership
+            if (ebook.userId.toString() !== req.user._id.toString()) {
+                return res.status(401).json({ message: 'Non autorisé' });
+            }
+
+            // Update fields if present in body
+            ebook.title = req.body.title || ebook.title;
+            ebook.subject = req.body.subject || ebook.subject;
+            ebook.author = req.body.author !== undefined ? req.body.author : ebook.author;
+            ebook.subtitle = req.body.subtitle !== undefined ? req.body.subtitle : ebook.subtitle;
+            ebook.coverFont = req.body.coverFont || ebook.coverFont;
+
+            // Allow updating content/chapters if needed later
+            if (req.body.chapters) ebook.chapters = req.body.chapters;
+            if (req.body.content) ebook.content = req.body.content;
+            if (req.body.status) ebook.status = req.body.status;
+            if (req.body.coverUrl) ebook.coverUrl = req.body.coverUrl;
+
+            const updatedEbook = await ebook.save();
+            res.json(updatedEbook);
+        } else {
+            res.status(404).json({ message: 'Ebook non trouvé' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Delete ebook
 // @route   DELETE /api/ebooks/:id
 // @access  Private
@@ -121,4 +157,4 @@ const getEbookStats = async (req, res) => {
     }
 };
 
-export { getMyEbooks, getEbookById, deleteEbook, getEbookStats };
+export { getMyEbooks, getEbookById, deleteEbook, getEbookStats, updateEbook };
