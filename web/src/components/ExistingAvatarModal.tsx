@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Play, Trash2, User } from 'lucide-react';
+import { Play, Trash2, User } from 'lucide-react';
 import { Button } from './ui/Button';
 
 interface ExistingAvatarModalProps {
@@ -13,7 +13,7 @@ interface ExistingAvatarModalProps {
 
 export const ExistingAvatarModal: React.FC<ExistingAvatarModalProps> = ({
     isOpen,
-    onClose,
+    // onClose,
     onContinue,
     onReset,
     avatar

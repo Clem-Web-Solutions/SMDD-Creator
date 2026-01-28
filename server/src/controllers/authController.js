@@ -66,6 +66,7 @@ const loginUser = async (req, res) => {
                 email: user.email,
                 plan: user.plan,
                 credits: user.credits,
+                mustChangePassword: user.mustChangePassword,
                 token: generateToken(user._id),
             });
         } else {
@@ -89,11 +90,33 @@ const getMe = async (req, res) => {
             email: user.email,
             plan: user.plan,
             credits: user.credits,
-            avatar: user.avatar
+            avatar: user.avatar,
+            mustChangePassword: user.mustChangePassword
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-export { registerUser, loginUser, getMe };
+// @desc    Update password
+// @route   PUT /api/auth/password
+// @access  Private
+const updatePassword = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+
+        if (user) {
+            user.password = req.body.password;
+            user.mustChangePassword = false;
+            await user.save();
+
+            res.json({ message: 'Password updated successfully' });
+        } else {
+            res.status(404).json({ message: 'User not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export { registerUser, loginUser, getMe, updatePassword };

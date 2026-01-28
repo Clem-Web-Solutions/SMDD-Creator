@@ -1,4 +1,4 @@
-import { GraduationCap, PlayCircle, Edit, Trash2, Calendar, LayoutList, Download } from 'lucide-react';
+import { GraduationCap, PlayCircle, Trash2, Calendar, LayoutList, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
@@ -105,7 +105,35 @@ export function MyFormations() {
                                             <PlayCircle size={18} />
                                         </button>
                                     </Link>
-                                    <button className="p-2 text-slate-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors" title="Télécharger">
+                                    <button
+                                        onClick={async (e) => {
+                                            const btn = e.currentTarget;
+                                            const originalContent = btn.innerHTML;
+                                            btn.disabled = true;
+                                            btn.innerHTML = `<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+
+                                            try {
+                                                const { downloadFormationPackage } = await import('../utils/downloadHelper');
+                                                // Map sections to slides if available to capture scripts
+                                                const slidesToDownload = (course.sections && course.sections.length > 0)
+                                                    ? course.sections.map((s: any) => ({ ...(s.slide || s), script: s.script || '' }))
+                                                    : course.slides;
+
+                                                if (slidesToDownload && slidesToDownload.length > 0) {
+                                                    await downloadFormationPackage(course.title, slidesToDownload, course.videoUrl);
+                                                } else {
+                                                    alert("Aucun contenu à télécharger.");
+                                                }
+                                            } catch (err) {
+                                                console.error(err);
+                                            } finally {
+                                                btn.innerHTML = originalContent;
+                                                btn.disabled = false;
+                                            }
+                                        }}
+                                        className="p-2 text-slate-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors disabled:opacity-50"
+                                        title="Télécharger (Vidéo + Slides)"
+                                    >
                                         <Download size={18} />
                                     </button>
                                     <button className="p-2 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors" title="Supprimer">

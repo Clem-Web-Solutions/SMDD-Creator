@@ -28,7 +28,7 @@ export function Generator() {
     const [insufficientCreditDetails, setInsufficientCreditDetails] = useState({ required: 100, current: 0 });
 
     // Formation Steps
-    const [formationStep, setFormationStep] = useState<1 | 2>(1);
+    // const [formationStep, setFormationStep] = useState<1 | 2>(1);
     // const [slidePrompt, setSlidePrompt] = useState(''); // Removed simple prompt
 
     // New Structured Formation Config
@@ -226,6 +226,17 @@ export function Generator() {
                 })
             });
 
+            if (response.status === 403) {
+                const errorData = await response.json();
+                setInsufficientCreditDetails({
+                    required: errorData.required || 100,
+                    current: errorData.current || 0
+                });
+                setShowNoCreditsModal(true);
+                setIsGeneratingAvatar(false);
+                return;
+            }
+
             const data = await response.json();
 
             if (response.ok) {
@@ -237,9 +248,22 @@ export function Generator() {
                 // But currently backend only returns video_id.
                 // We will poll for video status.
                 checkAvatarStatus(data.video_id, token!);
+
+                // REFRESH USER CREDITS AFTER SUCCESS
+                fetch("http://localhost:3001/api/auth/me", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                })
+                    .then(res => res.json())
+                    .then(userData => {
+                        const updatedUser = { ...userData, token };
+                        localStorage.setItem('userInfo', JSON.stringify(updatedUser));
+                        window.dispatchEvent(new Event('userDataUpdated'));
+                    });
+
             } else {
                 console.error("Formation generation failed:", data);
                 setIsGeneratingAvatar(false);
+                alert(data.error || "Erreur lors de la génération");
             }
         } catch (error) {
             console.error("Error generating formation:", error);
@@ -710,7 +734,7 @@ export function Generator() {
                 onClose={() => setShowAvatarModal(false)}
                 onContinue={() => {
                     setShowAvatarModal(false);
-                    setFormationStep(1);
+                    // setFormationStep(1);
                     setShowFormationConfig(true);
                 }}
                 videoUrl={avatarVideoUrl}

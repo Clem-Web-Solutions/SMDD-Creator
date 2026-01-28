@@ -3,6 +3,13 @@ import axios from 'axios';
 import User from '../models/User.js';
 import Formation from '../models/Formation.js';
 import OpenAI from 'openai';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { protect } from '../middleware/authMiddleware.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -39,6 +46,28 @@ router.post('/generate', async (req, res) => {
         if (!avatarId) {
             return res.status(404).json({ error: "ID d'avatar introuvable." });
         }
+
+        // 1.5 CHECK & DEDUCT CREDITS
+        // 1.5 CHECK & DEDUCT CREDITS
+        let COST = 100; // Default
+        if (slideCount && typeof slideCount === 'string') {
+            if (slideCount.includes('Moyen') || slideCount.includes('Medium')) COST = 150;
+            else if (slideCount.includes('Long')) COST = 250;
+            else COST = 100; // Court or fallback
+        }
+
+        if (user.credits < COST) {
+            return res.status(403).json({
+                error: "Crédits insuffisants",
+                required: COST,
+                current: user.credits
+            });
+        }
+
+        // Deduct credits immediately
+        user.credits -= COST;
+        await user.save();
+        console.log(`[CREDITS] Deducted ${COST} credits from user ${userId}. Remaining: ${user.credits}`);
 
         // 2. Determine Voice based on Gender
         // Strict mapping: Homme -> Henri (Male), Femme -> Coralie (Female)
@@ -265,6 +294,49 @@ router.get('/:id', async (req, res) => {
     } catch (error) {
         console.error("Error getting formation:", error);
         res.status(500).json({ error: "Erreur serveur" });
+    }
+});
+
+// Composite Download Endpoint
+router.post('/download-composite', protect, async (req, res) => {
+    try {
+        const { videoUrl, slides } = req.body;
+        // slides is array of { image: "data:image/png;base64,...", duration: 5 }
+
+        if (!videoUrl || !slides || slides.length === 0) {
+            return res.status(400).json({ error: "Missing videoUrl or slides" });
+        }
+
+        const tempDir = path.join(__dirname, '../../uploads/temp');
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+        // Save slide images to disk
+        const slideFiles = [];
+        for (let i = 0; i < slides.length; i++) {
+            const matches = slides[i].image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (!matches || matches.length !== 3) continue;
+
+            const buffer = Buffer.from(matches[2], 'base64');
+            const filePath = path.join(tempDir, `slide_${Date.now()}_${i}.png`);
+            fs.writeFileSync(filePath, buffer);
+            slideFiles.push({ path: filePath, duration: slides[i].duration });
+        }
+
+        const { composeVideo } = await import('../utils/videoComposer.js');
+        const finalPath = await composeVideo(videoUrl, slideFiles, tempDir);
+
+        res.download(finalPath, 'formation_composite.mp4', (err) => {
+            if (err) console.error("Download error:", err);
+
+            // Cleanup final file
+            fs.unlink(finalPath, () => { });
+            // Cleanup slide images
+            slideFiles.forEach(s => fs.unlink(s.path, () => { }));
+        });
+
+    } catch (error) {
+        console.error("Composite download failed:", error);
+        res.status(500).json({ error: "Generation failed" });
     }
 });
 

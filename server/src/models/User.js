@@ -29,6 +29,9 @@ const userSchema = new mongoose.Schema({
         default: Date.now
     },
     avatar: {
+        type: { type: String, default: 'talking_photo' }, // 'talking_photo' or 'avatar'
+        avatarId: String, // ID for Studio Avatars
+        name: String, // Name of the avatar
         videoId: String,
         description: String,
         gender: String, // 'Homme', 'Femme'
@@ -42,6 +45,10 @@ const userSchema = new mongoose.Schema({
             content: [String],
             imagePrompt: String
         }]
+    },
+    mustChangePassword: {
+        type: Boolean,
+        default: false
     }
 });
 

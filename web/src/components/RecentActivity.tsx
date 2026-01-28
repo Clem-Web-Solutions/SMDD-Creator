@@ -1,4 +1,4 @@
-import { Share2, FileText, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { CheckCircle2, Clock, Loader2 } from 'lucide-react';
 
 export function RecentActivity() {
     const activities = [

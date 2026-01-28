@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function LandingLayout({ children }: { children: React.ReactNode }) {
     const navigate = useNavigate();
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     return (
         <div className="min-h-screen bg-[#020617] text-white font-sans selection:bg-electric/30">
@@ -14,10 +18,12 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                         </div>
                         <span className="font-bold text-xl tracking-tight">SMDD <span className="text-electric">Creator</span></span>
                     </div>
-                    <div className="flex items-center gap-8">
-                        <a href="#features" className="text-sm font-medium text-slate-300 hover:text-white transition-colors hidden md:block">Fonctionnalités</a>
-                        <a href="#how-it-works" className="text-sm font-medium text-slate-300 hover:text-white transition-colors hidden md:block">Comment ça marche</a>
-                        <a href="#pricing" className="text-sm font-medium text-slate-300 hover:text-white transition-colors hidden md:block">Tarifs</a>
+
+                    {/* Desktop Menu */}
+                    <div className="hidden md:flex items-center gap-8">
+                        <a href="#features" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Fonctionnalités</a>
+                        <a href="#how-it-works" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Comment ça marche</a>
+                        <a href="#pricing" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Tarifs</a>
                         <button
                             onClick={() => navigate('/login')}
                             className="bg-white text-black px-6 py-2.5 rounded-full font-bold text-sm hover:bg-slate-200 transition-all transform hover:scale-105"
@@ -25,8 +31,58 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                             Connexion
                         </button>
                     </div>
+
+                    {/* Mobile Menu Button */}
+                    <button
+                        className="md:hidden p-2 text-slate-300 hover:text-white rounded-lg hover:bg-white/5"
+                        onClick={() => setIsMobileMenuOpen(true)}
+                    >
+                        <Menu size={24} />
+                    </button>
                 </div>
             </nav>
+
+            {/* Mobile Menu Overlay */}
+            <AnimatePresence>
+                {isMobileMenuOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="fixed inset-0 z-[60] bg-[#020617] flex flex-col p-6 md:hidden"
+                    >
+                        <div className="flex justify-between items-center mb-8">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-electric to-blue-600 rounded-xl flex items-center justify-center">
+                                    <span className="text-white font-bold text-xl">S</span>
+                                </div>
+                                <span className="font-bold text-xl tracking-tight">SMDD <span className="text-electric">Creator</span></span>
+                            </div>
+                            <button
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="p-2 text-slate-300 hover:text-white rounded-lg hover:bg-white/5"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col gap-6 text-xl font-medium text-center">
+                            <a href="#features" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-slate-300 hover:text-white transition-colors">Fonctionnalités</a>
+                            <a href="#how-it-works" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-slate-300 hover:text-white transition-colors">Comment ça marche</a>
+                            <a href="#pricing" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-slate-300 hover:text-white transition-colors">Tarifs</a>
+                            <button
+                                onClick={() => {
+                                    setIsMobileMenuOpen(false);
+                                    navigate('/login');
+                                }}
+                                className="mt-4 bg-white text-black px-6 py-4 rounded-xl font-bold hover:bg-slate-200 transition-all"
+                            >
+                                Connexion
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <main>
                 {children}

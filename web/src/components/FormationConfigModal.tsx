@@ -155,6 +155,16 @@ export function FormationConfigModal({
                                 </div>
                             </div>
 
+                            {/* Credit Cost Indicator */}
+                            <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 p-4 rounded-xl mb-4 border border-slate-200 dark:border-slate-800">
+                                <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">Coût de génération</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-purple-600 dark:text-purple-400 font-bold">
+                                        {length.includes('Court') ? 100 : length.includes('Moyen') ? 150 : 250} Crédits
+                                    </span>
+                                </div>
+                            </div>
+
                             <button
                                 onClick={onGenerate}
                                 disabled={isGenerating || !subject}
@@ -168,7 +178,7 @@ export function FormationConfigModal({
                                 ) : (
                                     <>
                                         <Wand2 size={24} />
-                                        <span>Générer les slides</span>
+                                        <span>Générer les slides (-{length.includes('Court') ? 100 : length.includes('Moyen') ? 150 : 250} crédits)</span>
                                     </>
                                 )}
                             </button>

@@ -19,7 +19,8 @@ interface PresentationViewerProps {
     slides?: Slide[]; // Legacy support
     sections?: Section[]; // New structured content
     videoUrl?: string;
-    error?: string;
+    error?: string; // Added error prop
+
     onClose: () => void;
 }
 
@@ -29,6 +30,27 @@ export function PresentationViewer({ slides, sections, videoUrl, error, onClose 
     // Derive active content from either sections or slides
     const activeData = sections || slides?.map(s => ({ slide: s, script: '' })) || [];
     const totalSlides = activeData.length;
+
+    // Handle Error State
+    if (error) {
+        return (
+            <div className="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
+                <div className="bg-slate-800 p-8 rounded-2xl max-w-md text-center border border-red-500/30">
+                    <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-red-400">
+                        <X size={32} />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">Une erreur est survenue</h2>
+                    <p className="text-slate-400 mb-8">{error}</p>
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-3 bg-white text-slate-900 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                    >
+                        Retour au Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     const nextSlide = () => {
         if (currentSlide < totalSlides - 1) {
@@ -181,7 +203,7 @@ export function PresentationViewer({ slides, sections, videoUrl, error, onClose 
 function VideoPlayer({ videoUrl, activeData, onTimeUpdate }: { videoUrl: string, activeData: any[], onTimeUpdate: (i: number) => void }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [startFailed, setStartFailed] = useState(false);
-    const videoRef = useState<HTMLVideoElement | null>(null);
+
 
     // Handlers
     const togglePlay = () => {
@@ -199,15 +221,7 @@ function VideoPlayer({ videoUrl, activeData, onTimeUpdate }: { videoUrl: string,
         }
     };
 
-    const downloadVideo = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        const link = document.createElement('a');
-        link.href = videoUrl;
-        link.download = `Formation-Video-${Date.now()}.mp4`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
+
 
     // Autoplay effect
     useEffect(() => {
@@ -262,9 +276,37 @@ function VideoPlayer({ videoUrl, activeData, onTimeUpdate }: { videoUrl: string,
                 {/* PDF/Video Download Button (Top Right of Video) */}
                 <div className="absolute top-4 right-4">
                     <button
-                        onClick={downloadVideo}
-                        className="p-2 bg-white/20 hover:bg-white/40 backdrop-blur rounded-lg text-white transition-colors flex items-center gap-2"
-                        title="Télécharger la vidéo"
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            const btn = e.currentTarget;
+                            const originalContent = btn.innerHTML;
+                            btn.disabled = true;
+                            // Add spinning loader
+                            const loader = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+                            const textSpan = btn.querySelector('span');
+                            if (textSpan) textSpan.innerText = "Traitement...";
+                            // Replace icon with loader temporarily if desired, or just append
+                            // Simplified approach:
+                            btn.innerHTML = `${loader} <span class="text-sm font-medium">Traitement...</span>`;
+
+                            try {
+                                const { downloadFormationPackage } = await import('../utils/downloadHelper');
+                                const slides = activeData.map(item => {
+                                    const rawSlide = (item as any).slide || item;
+                                    const script = (item as any).script || '';
+                                    return { ...rawSlide, script };
+                                });
+                                const title = slides[0]?.title ? `Formation - ${slides[0].title}` : 'Formation';
+                                await downloadFormationPackage(title, slides, videoUrl);
+                            } catch (err) {
+                                console.error(err);
+                            } finally {
+                                btn.disabled = false;
+                                btn.innerHTML = originalContent;
+                            }
+                        }}
+                        className="p-2 bg-white/20 hover:bg-white/40 backdrop-blur rounded-lg text-white transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-wait"
+                        title="Télécharger le pack (Vidéo + Slides)"
                     >
                         <Download size={20} />
                         <span className="text-sm font-medium">Télécharger</span>

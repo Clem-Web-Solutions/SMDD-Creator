@@ -1,7 +1,7 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CheckCircle, Video, Image as ImageIcon } from 'lucide-react';
+import { X, CheckCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 
 interface AvatarSuccessModalProps {
@@ -13,7 +13,7 @@ interface AvatarSuccessModalProps {
 }
 
 export const AvatarSuccessModal: React.FC<AvatarSuccessModalProps> = ({ isOpen, onClose, onContinue, videoUrl, avatar }) => {
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
 
     // Fallback if using legacy avatar prop
     const finalVideoUrl = videoUrl || avatar?.videoUrl;

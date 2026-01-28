@@ -418,9 +418,9 @@ function ComparisonRow({ label, us, them }: { label: string, us: string, them: s
 
 function PricingCard({ title, price, period, features, isPopular }: { title: string, price: string, period?: string, features: string[], isPopular?: boolean }) {
     return (
-        <div className={`p-8 rounded-[32px] border flex flex-col relative overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${isPopular ? 'bg-[#0B1121] border-electric shadow-2xl shadow-electric/10' : 'bg-[#0B1121]/50 border-white/5 hover:border-white/10 hover:shadow-electric/5'}`}>
+        <div className={`p-8 rounded-[32px] border flex flex-col relative transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${isPopular ? 'bg-[#0B1121] border-electric shadow-2xl shadow-electric/10' : 'bg-[#0B1121]/50 border-white/5 hover:border-white/10 hover:shadow-electric/5'}`}>
             {isPopular && (
-                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-electric to-transparent shadow-[0_0_20px_theme(colors.electric)]" />
+                <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-transparent via-electric to-transparent shadow-[0_0_20px_theme(colors.electric)] rounded-t-[32px]" />
             )}
             {isPopular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-electric text-white text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full shadow-lg shadow-electric/20">
@@ -485,7 +485,7 @@ function FaqItem({ q, a }: { q: string, a: string }) {
 }
 function HeroText() {
     const navigate = useNavigate();
-    const { scrollY } = useScroll();
+    // const { scrollY } = useScroll();
     return (
         <motion.div
             className="max-w-4xl mx-auto"
