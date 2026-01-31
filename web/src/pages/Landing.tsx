@@ -495,7 +495,7 @@ function HeroText() {
                 <span>La référence des créateurs de contenu IA</span>
             </div>
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-8 tracking-tight leading-[1.1]">
-                Créez Ebooks et Formations <br className="hidden md:block" />
+                Créez Formations et Ebooks <br className="hidden md:block" />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-electric via-blue-400 to-electric animate-gradient bg-[length:200%_auto]">en quelques minutes.</span>
             </h1>
             <p className="text-xl md:text-2xl text-slate-400 mb-12 max-w-2xl mx-auto leading-relaxed">
