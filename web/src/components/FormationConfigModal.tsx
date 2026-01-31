@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wand2, X, FileText } from 'lucide-react';
+import { VoiceSelector } from './VoiceSelector';
 
 interface FormationConfigModalProps {
     isOpen: boolean;
@@ -20,6 +21,9 @@ interface FormationConfigModalProps {
     setLanguage: (val: string) => void;
     length: string;
     setLength: (val: string) => void;
+
+    // New prop for voice selection
+    onVoiceSelect: (voiceId: string) => void;
 }
 
 export function FormationConfigModal({
@@ -32,7 +36,8 @@ export function FormationConfigModal({
     audience, setAudience,
     tone, setTone,
     language, setLanguage,
-    length, setLength
+    length, setLength,
+    onVoiceSelect
 }: FormationConfigModalProps) {
     return (
         <AnimatePresence>
@@ -95,6 +100,14 @@ export function FormationConfigModal({
                                     onChange={(e) => setSubject(e.target.value)}
                                     placeholder="Ex: Expliquer les bases du SEO, les mots-clés, et l'optimisation on-page..."
                                     className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-white resize-none"
+                                />
+                            </div>
+
+                            {/* Voice Selection */}
+                            <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-900/50">
+                                <VoiceSelector
+                                    onSelect={onVoiceSelect}
+                                    initialGender="Masculin" // Default, or infer from somewhere else if needed
                                 />
                             </div>
 

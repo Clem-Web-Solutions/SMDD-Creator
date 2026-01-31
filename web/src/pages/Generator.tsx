@@ -38,9 +38,11 @@ export function Generator() {
     const [formationTone, setFormationTone] = useState('Pédagogique');
     const [formationLanguage, setFormationLanguage] = useState('Français');
     const [formationLength, setFormationLength] = useState('Moyen (8-12 slides)');
+    const [selectedVoiceId, setSelectedVoiceId] = useState<string | null>(null);
 
     // Avatar State
     const [avatarMode, setAvatarMode] = useState<'studio' | 'custom'>('studio'); // New Mode State
+
     const [avatarGender, setAvatarGender] = useState('Femme');
     const [avatarAge, setAvatarAge] = useState('Trentenaire');
     const [avatarStyle, setAvatarStyle] = useState('Professionnel');
@@ -222,7 +224,8 @@ export function Generator() {
                     audience: formationAudience,
                     tone: formationTone,
                     language: formationLanguage,
-                    slideCount: formationLength
+                    slideCount: formationLength,
+                    voiceId: selectedVoiceId // Pass the selected ElevenLabs voice
                 })
             });
 
@@ -761,6 +764,7 @@ export function Generator() {
                 setLanguage={setFormationLanguage}
                 length={formationLength}
                 setLength={setFormationLength}
+                onVoiceSelect={setSelectedVoiceId}
             />
 
             <ExistingAvatarModal

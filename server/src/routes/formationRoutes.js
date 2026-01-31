@@ -7,6 +7,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { protect } from '../middleware/authMiddleware.js';
+import { generateAudio, saveAudioToTemp } from '../utils/elevenLabsService.js';
+import { uploadAudioToHeyGen } from '../utils/heyGenService.js';
+
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -138,18 +142,19 @@ REQUIREMENTS:
         // HeyGen generates one video file. content needs to be sequential.
         // We add small pauses between sections for natural flow.
         // Note: SSML tags like <break> might be read aloud by some voices. Using natural markers.
+        // 4. Concatenate Script
         const fullScript = sections.map(s => s.script).join(" ... ");
 
         console.log("3. Génération de la vidéo avec HeyGen...");
         console.log(`Script complet (${fullScript.length} chars)`);
 
-        // Construct Character Payload based on Type
+        // Construct Character Payload
         let characterPayload;
         if (avatarType === 'avatar') {
             characterPayload = {
                 type: "avatar",
                 avatar_id: avatarId,
-                avatar_style: "normal" // Default style for studio avatars
+                avatar_style: "normal"
             };
         } else {
             characterPayload = {
@@ -158,15 +163,52 @@ REQUIREMENTS:
             };
         }
 
+        // PREPARE VOICE PAYLOAD (ElevenLabs or Native)
+        let voicePayload;
+        const requestedVoiceId = req.body.voiceId;
+
+        if (requestedVoiceId) {
+            console.log(`[ElevenLabs] Generating audio with voice ${requestedVoiceId}...`);
+            try {
+                // A. Generate Audio
+                const audioBuffer = await generateAudio(fullScript, requestedVoiceId);
+
+                // B. Save to Temp
+                const { filepath } = await saveAudioToTemp(audioBuffer);
+                console.log(`[ElevenLabs] Audio saved to ${filepath}`);
+
+                // C. Upload to HeyGen
+                const assetId = await uploadAudioToHeyGen(filepath);
+                console.log(`[HeyGen] Audio Asset ID: ${assetId}`);
+
+                // D. Cleanup Temp File (optional, doing it later or now)
+                try { fs.unlinkSync(filepath); } catch (e) { }
+
+                // E. Set Voice Payload
+                voicePayload = {
+                    type: "audio",
+                    audio_asset_id: assetId
+                };
+
+            } catch (err) {
+                console.error("ElevenLabs/HeyGen Audio Flow Failed:", err);
+                return res.status(500).json({ error: "Echec de la génération audio (ElevenLabs)" });
+            }
+        } else {
+            // FALLBACK TO NATIVE HEYGEN TTS
+            console.log("[HeyGen] Using Native TTS");
+            voicePayload = {
+                type: "text",
+                voice_id: voiceId, // Calculated earlier based on gender
+                input_text: fullScript
+            };
+        }
+
         const videoGenerationResponse = await axios.post('https://api.heygen.com/v2/video/generate', {
             video_inputs: [
                 {
                     character: characterPayload,
-                    voice: {
-                        type: "text",
-                        voice_id: voiceId,
-                        input_text: fullScript
-                    }
+                    voice: voicePayload
                 }
             ],
             dimension: {

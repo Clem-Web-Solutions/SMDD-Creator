@@ -5,6 +5,7 @@ import authRoutes from './authRoutes.js';
 import avatarRoutes from './avatarRoutes.js';
 import ebookListRoutes from './ebookRoutes.js';
 import formationRoutes from './formationRoutes.js';
+import voiceRoutes from './voiceRoutes.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -18,5 +19,6 @@ router.use('/generate', [ebookRoutes, coverRoutes]);
 router.use('/avatar', protect, avatarRoutes);
 router.use('/formation', protect, formationRoutes);
 router.use('/ebooks', ebookListRoutes);
+router.use('/voices', voiceRoutes);
 
 export default router;
